@@ -17,14 +17,14 @@ export const StatusSummary: React.FC = () => {
   const [isExecuting, setIsExecuting] = useState(false);
 
   const isSimulated = settings.apiMode === 'mock';
-  const isOffline = connectionState === 'offline';
+  const hasLiveStatus = connectionState === 'connected';
   const hasPendingCommands = channels.some(
     (channel) => channel.commandState === 'pending'
   );
 
   const isAllOffDisabled =
+    !hasLiveStatus ||
     channelsOnCount === 0 ||
-    isOffline ||
     isExecuting ||
     hasPendingCommands;
 
@@ -41,7 +41,7 @@ export const StatusSummary: React.FC = () => {
     }
   };
 
-  const active = channelsOnCount > 0;
+  const active = hasLiveStatus && channelsOnCount > 0;
 
   return (
     <>
@@ -59,7 +59,7 @@ export const StatusSummary: React.FC = () => {
             <div
               className="energy-orb relative flex h-12 w-12 shrink-0 items-center justify-center"
               role="img"
-              aria-label={active ? 'Active energy orb' : 'Idle energy orb'}
+              aria-label={active ? 'Controller reports one or more channels commanded on' : 'Controller reports no channels commanded on'}
             >
               <span
                 className={`absolute inset-1 rounded-full blur-md transition-opacity duration-500 ${
@@ -84,14 +84,14 @@ export const StatusSummary: React.FC = () => {
               <div className="flex items-center gap-1.5 text-accent">
                 <ToggleRight size={14} aria-hidden="true" />
                 <span className="text-[10px] font-semibold uppercase tracking-wider">
-                  Active relays
+                  Commanded ON
                 </span>
               </div>
               <p className="mt-1 font-mono text-2xl font-semibold tracking-tight text-accent">
-                {String(channelsOnCount).padStart(2, '0')}
+                {hasLiveStatus ? String(channelsOnCount).padStart(2, '0') : '—'}
               </p>
               <p className="text-[10px] text-ink-muted">
-                {active ? 'Energy online' : 'Standby'}
+                {hasLiveStatus ? (active ? 'Controller command state' : 'No ON commands') : 'Status unavailable'}
               </p>
             </div>
           </div>
@@ -104,13 +104,13 @@ export const StatusSummary: React.FC = () => {
 
             <div className="min-w-0">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
-                Inactive relays
+                Commanded OFF
               </p>
               <p className="mt-1 font-mono text-2xl font-semibold text-ink">
-                {String(channelsOffCount).padStart(2, '0')}
+                {hasLiveStatus ? String(channelsOffCount).padStart(2, '0') : '—'}
               </p>
               <p className="text-[10px] text-ink-muted">
-                Out of {channels.length} channels
+                {hasLiveStatus ? `Of ${channels.length} channels` : 'Controller state unavailable'}
               </p>
             </div>
           </div>
@@ -141,15 +141,15 @@ export const StatusSummary: React.FC = () => {
             </button>
 
             <p className="text-center text-[10px] leading-relaxed text-ink-muted">
-              {isOffline
+              {connectionState === 'offline'
                 ? 'Controller disconnected'
                 : hasPendingCommands
                   ? 'Waiting for relay command'
                   : channelsOnCount === 0
-                    ? 'All channels already off'
+                    ? hasLiveStatus ? 'No ON commands reported' : 'Waiting for controller status'
                     : isSimulated
-                      ? 'Turn off all simulated relays'
-                      : 'Turn off all relay channels'}
+                      ? 'Turn off all simulated channels'
+                      : 'Send OFF commands to all channels'}
             </p>
           </div>
         </div>
@@ -159,14 +159,14 @@ export const StatusSummary: React.FC = () => {
           <span className="inline-flex items-center gap-2">
             <span className="dot-active h-2 w-2 rounded-full bg-accent" aria-hidden="true" />
             <span className="font-mono text-xs font-semibold text-cyan-200">
-              {channelsOnCount} ON
+              {hasLiveStatus ? `${channelsOnCount} CMD ON` : '— CMD ON'}
             </span>
           </span>
 
           <span className="inline-flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-slate-500" aria-hidden="true" />
             <span className="font-mono text-xs font-semibold text-ink-muted">
-              {channelsOffCount} OFF
+              {hasLiveStatus ? `${channelsOffCount} CMD OFF` : '— CMD OFF'}
             </span>
           </span>
 
@@ -187,8 +187,8 @@ export const StatusSummary: React.FC = () => {
         title="Execute ALL OFF?"
         message={
           isSimulated
-            ? 'This will send an OFF command to all six simulated relay channels.'
-            : 'This command will send an OFF command to all six relay channels. Connected loads may lose power.'
+            ? 'This sends an OFF command to all six simulated channels.'
+            : 'This sends an OFF command to all six controller channels. The firmware reports commanded GPIO state, not physical relay or load feedback.'
         }
         confirmLabel="Turn Off All"
         onConfirm={handleConfirmAllOff}

@@ -3,7 +3,9 @@ import {
   DeviceInfoDTO,
   ConfigDTO,
   RelayCommandResponseDTO,
-  AllRelaysCommandResponseDTO
+  AllRelaysCommandResponseDTO,
+  RelayHardwareConfigDTO,
+  RelayGpioMappingDTO
 } from './types';
 import { MockHomePilotApi } from './mockHomePilotApi';
 import { HttpHomePilotApi } from './httpHomePilotApi';
@@ -15,6 +17,9 @@ export interface IHomePilotApi {
   getDeviceInfo(): Promise<DeviceInfoDTO>;
   getConfiguration(): Promise<ConfigDTO>;
   updateConfiguration(config: Partial<ConfigDTO>): Promise<ConfigDTO>;
+  getRelayHardwareConfig(): Promise<RelayHardwareConfigDTO>;
+  saveRelayGpioMapping(mapping: RelayGpioMappingDTO): Promise<RelayHardwareConfigDTO>;
+  applyRelayGpioMapping(): Promise<RelayHardwareConfigDTO>;
 }
 
 export function createHomePilotApi(

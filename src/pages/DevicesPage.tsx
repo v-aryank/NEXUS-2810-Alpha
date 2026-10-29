@@ -28,7 +28,7 @@ export const DevicesPage: React.FC = () => {
       <PageHeader
         eyebrow="NEXUS-2810 / RELAY CONTROL"
         title="Relay management"
-        description="Control each circuit, inspect command state, and assign local labels. GPIO mapping stays locked in firmware."
+        description="Control each circuit, inspect software command state, and assign local labels. Configure GPIO assignments in Settings."
       />
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
@@ -108,7 +108,7 @@ export const DevicesPage: React.FC = () => {
                   <div className="mt-3">
                     <h3 className="text-sm font-medium text-ink">{channel.name}</h3>
                     <p className="text-xs text-ink-muted mt-1">{channel.room}</p>
-                    <p className="font-mono text-[11px] text-ink-muted mt-3">GPIO map: firmware-locked</p>
+                    <p className="font-mono text-[11px] text-ink-muted mt-3">GPIO assignment: configurable in Settings</p>
                   </div>
                 )}
               </div>
@@ -121,8 +121,8 @@ export const DevicesPage: React.FC = () => {
         <ShieldCheck size={16} className="text-ok shrink-0 mt-0.5" aria-hidden="true" />
         <span>
           {settings.apiMode === 'mock'
-            ? 'Labels are stored in this browser. Channel power states come from the simulated driver, not a physical ESP32.'
-            : 'Hardware GPIO configurations are locked in ESP32 firmware for electrical safety. Labels are stored locally in this browser.'}
+            ? 'Labels and relay commands are simulated in this browser; nothing here changes a physical ESP32.'
+            : 'Channel labels are stored locally in this browser. GPIO assignments are validated and saved by the ESP32; reported states are software commands, not physical feedback.'}
         </span>
       </div>
     </div>

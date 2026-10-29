@@ -15,9 +15,9 @@ const isLocalDev = typeof window !== 'undefined' && (window.location.hostname ==
 
 const DEFAULT_SETTINGS: AppSettings = {
   apiMode: isLocalDev ? 'mock' : 'http',
-  controllerUrl: '',
+  controllerUrl: import.meta.env.VITE_API_BASE_URL ?? '',
   pollIntervalMs: 3000,
-  requestTimeoutMs: 3500,
+  requestTimeoutMs: 6500,
   reducedMotion: false
 };
 
@@ -26,6 +26,7 @@ interface ControllerContextType {
   connectionState: ConnectionState;
   lastSyncTime: Date | null;
   errorMessage: string | null;
+  deviceInfoError: string | null;
   systemInfo: ControllerSystemInfo | null;
   settings: AppSettings;
   updateSettings: (newSettings: Partial<AppSettings>) => void;
@@ -46,7 +47,14 @@ export const ControllerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (saved) {
         const parsed = JSON.parse(saved);
         delete parsed.authToken; // Never restore credentials from localStorage.
-        return { ...DEFAULT_SETTINGS, ...parsed };
+        const savedTimeout = Number(parsed.requestTimeoutMs);
+        return {
+          ...DEFAULT_SETTINGS,
+          ...parsed,
+          requestTimeoutMs: Number.isFinite(savedTimeout)
+            ? Math.min(120000, Math.max(6000, savedTimeout))
+            : DEFAULT_SETTINGS.requestTimeoutMs
+        };
       }
     } catch {}
     return DEFAULT_SETTINGS;
@@ -75,14 +83,16 @@ export const ControllerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [connectionState, setConnectionState] = useState<ConnectionState>('connecting');
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [deviceInfoError, setDeviceInfoError] = useState<string | null>(null);
   const [systemInfo, setSystemInfo] = useState<ControllerSystemInfo | null>(null);
 
   const apiRef = useRef<IHomePilotApi>(
     createHomePilotApi(settings.apiMode, settings.controllerUrl, settings.requestTimeoutMs)
   );
 
-  const isPollingRef = useRef<boolean>(false);
+  const pollingGenerationRef = useRef<number | null>(null);
   const highestRevisionRef = useRef<number>(0);
+  const requestGenerationRef = useRef<number>(0);
   const activeCommandsRef = useRef<Set<number>>(new Set());
 
   useEffect(() => {
@@ -92,6 +102,23 @@ export const ControllerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       settings.requestTimeoutMs,
       settings.authToken
     );
+    requestGenerationRef.current += 1;
+    highestRevisionRef.current = 0;
+    setConnectionState('connecting');
+    setLastSyncTime(null);
+    setErrorMessage(null);
+    setDeviceInfoError(null);
+    setSystemInfo(null);
+    setChannels((previous) =>
+      previous.map((channel) =>
+        channel.commandState === 'pending'
+          ? { ...channel, commandState: 'idle' }
+          : channel
+      )
+    );
+  }, [settings.apiMode, settings.controllerUrl, settings.requestTimeoutMs, settings.authToken]);
+
+  useEffect(() => {
     try {
       const persistedSettings = { ...settings, authToken: undefined };
       localStorage.setItem('nexus_settings', JSON.stringify(persistedSettings));
@@ -114,47 +141,53 @@ export const ControllerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   }, [metadata]);
 
   const fetchDeviceInfo = useCallback(async () => {
+    const generation = requestGenerationRef.current;
     try {
       const info = await apiRef.current.getDeviceInfo();
-      setSystemInfo((prev) => ({
+      if (generation !== requestGenerationRef.current) return;
+      setSystemInfo({
         firmwareVersion: info.firmware,
         hardwareModel: info.model,
         chipId: info.chipId,
         macAddress: info.mac,
         ipAddress: info.ip,
-        uptimeSeconds: prev?.uptimeSeconds || 0,
-        freeHeapBytes: prev?.freeHeapBytes || 0,
-        wifiRssi: prev?.wifiRssi || 0
-      }));
-    } catch {}
+        uptimeSeconds: 0,
+        freeHeapBytes: 0,
+        wifiRssi: 0
+      });
+      setDeviceInfoError(null);
+    } catch (err) {
+      if (generation !== requestGenerationRef.current) return;
+      setDeviceInfoError(err instanceof Error ? err.message : 'Device information is unavailable.');
+    }
   }, []);
 
   const syncStatus = useCallback(async () => {
-    if (isPollingRef.current) return;
-    isPollingRef.current = true;
+    const generation = requestGenerationRef.current;
+    if (pollingGenerationRef.current === generation) return;
+    pollingGenerationRef.current = generation;
 
     try {
       const data = await apiRef.current.getStatus();
+      if (generation !== requestGenerationRef.current) return;
 
-      if (data.revision < highestRevisionRef.current) {
-        return;
+      if (data.revision >= highestRevisionRef.current) {
+        highestRevisionRef.current = data.revision;
+        setChannels((prevChannels) =>
+          prevChannels.map((channel) => {
+            if (activeCommandsRef.current.has(channel.id)) {
+              return channel;
+            }
+            const remoteItem = data.relays.find((r) => r.id === channel.id);
+            if (!remoteItem) return channel;
+            return {
+              ...channel,
+              state: remoteItem.state,
+              commandState: 'idle'
+            };
+          })
+        );
       }
-      highestRevisionRef.current = data.revision;
-
-      setChannels((prevChannels) =>
-        prevChannels.map((channel) => {
-          if (activeCommandsRef.current.has(channel.id)) {
-            return channel;
-          }
-          const remoteItem = data.relays.find((r) => r.id === channel.id);
-          if (!remoteItem) return channel;
-          return {
-            ...channel,
-            state: remoteItem.state,
-            commandState: 'idle'
-          };
-        })
-      );
 
       setSystemInfo((prev) =>
         prev
@@ -171,17 +204,20 @@ export const ControllerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setLastSyncTime(new Date());
       setErrorMessage(null);
     } catch (err: unknown) {
+      if (generation !== requestGenerationRef.current) return;
       setConnectionState('offline');
       const msg = err instanceof Error ? err.message : 'ESP32 controller unreachable';
       setErrorMessage(msg);
     } finally {
-      isPollingRef.current = false;
+      if (pollingGenerationRef.current === generation) {
+        pollingGenerationRef.current = null;
+      }
     }
   }, []);
 
   useEffect(() => {
-    fetchDeviceInfo();
-    syncStatus();
+    void fetchDeviceInfo();
+    void syncStatus();
 
     let intervalId: any = null;
 
@@ -202,7 +238,8 @@ export const ControllerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        syncStatus();
+        setConnectionState('connecting');
+        void syncStatus();
         startPolling();
       } else {
         stopPolling();
@@ -215,11 +252,20 @@ export const ControllerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       stopPolling();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [syncStatus, fetchDeviceInfo, settings.pollIntervalMs]);
+  }, [
+    syncStatus,
+    fetchDeviceInfo,
+    settings.apiMode,
+    settings.controllerUrl,
+    settings.requestTimeoutMs,
+    settings.authToken,
+    settings.pollIntervalMs
+  ]);
 
   const sendRelayCommand = async (channelId: number, targetState: boolean): Promise<boolean> => {
-    if (activeCommandsRef.current.has(channelId)) return false;
+    if (connectionState !== 'connected' || activeCommandsRef.current.has(channelId)) return false;
     activeCommandsRef.current.add(channelId);
+    const generation = requestGenerationRef.current;
 
     setChannels((prev) =>
       prev.map((c) =>
@@ -229,7 +275,13 @@ export const ControllerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     try {
       const response = await apiRef.current.setRelay(channelId, targetState);
-      if (response.success && response.channelId === channelId) {
+      if (generation !== requestGenerationRef.current) return false;
+      if (
+        response.success &&
+        response.channelId === channelId &&
+        response.state === targetState &&
+        Number.isInteger(response.revision)
+      ) {
         if (response.revision >= highestRevisionRef.current) {
           highestRevisionRef.current = response.revision;
         }
@@ -237,16 +289,18 @@ export const ControllerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           prev.map((c) => (c.id === channelId ? { ...c, state: response.state, commandState: 'idle' } : c))
         );
         setLastSyncTime(new Date());
+        window.setTimeout(() => void syncStatus(), 100);
         return true;
       }
       throw new Error('ESP32 returned invalid verification.');
     } catch (err: unknown) {
+      if (generation !== requestGenerationRef.current) return false;
       setChannels((prev) =>
         prev.map((c) => (c.id === channelId ? { ...c, commandState: 'uncertain' } : c))
       );
       const msg = err instanceof Error ? err.message : 'Relay command failure';
       setErrorMessage(`CH 0${channelId}: ${msg}`);
-      setTimeout(() => syncStatus(), 1000);
+      window.setTimeout(() => void syncStatus(), 250);
       return false;
     } finally {
       activeCommandsRef.current.delete(channelId);
@@ -254,27 +308,32 @@ export const ControllerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const sendAllOffCommand = async (): Promise<boolean> => {
+    if (connectionState !== 'connected' || activeCommandsRef.current.size > 0) return false;
     const allChannelIds = [1, 2, 3, 4, 5, 6];
     allChannelIds.forEach((id) => activeCommandsRef.current.add(id));
+    const generation = requestGenerationRef.current;
 
     setChannels((prev) => prev.map((c) => ({ ...c, commandState: 'pending' })));
 
     try {
       const response = await apiRef.current.setAllRelays(false);
-      if (response.success) {
+      if (generation !== requestGenerationRef.current) return false;
+      if (response.success && response.state === false && Number.isInteger(response.revision)) {
         if (response.revision >= highestRevisionRef.current) {
           highestRevisionRef.current = response.revision;
         }
         setChannels((prev) => prev.map((c) => ({ ...c, state: false, commandState: 'idle' })));
         setLastSyncTime(new Date());
+        window.setTimeout(() => void syncStatus(), 100);
         return true;
       }
       throw new Error('Controller failed to confirm All-Off command.');
     } catch (err: unknown) {
+      if (generation !== requestGenerationRef.current) return false;
       const msg = err instanceof Error ? err.message : 'All-off command failed';
       setErrorMessage(msg);
       setChannels((prev) => prev.map((c) => ({ ...c, commandState: 'uncertain' })));
-      setTimeout(() => syncStatus(), 1000);
+      window.setTimeout(() => void syncStatus(), 250);
       return false;
     } finally {
       allChannelIds.forEach((id) => activeCommandsRef.current.delete(id));
@@ -284,6 +343,10 @@ export const ControllerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const updateSettings = (newSettings: Partial<AppSettings>) => {
     setSettings((prev) => ({ ...prev, ...newSettings }));
   };
+
+  const manualRefresh = useCallback(async () => {
+    await Promise.all([syncStatus(), fetchDeviceInfo()]);
+  }, [syncStatus, fetchDeviceInfo]);
 
   const updateChannelMetadata = (id: number, name: string, room: string) => {
     setMetadata((prev) => prev.map((item) => (item.id === id ? { ...item, name, room } : item)));
@@ -299,13 +362,14 @@ export const ControllerProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         connectionState,
         lastSyncTime,
         errorMessage,
+        deviceInfoError,
         systemInfo,
         settings,
         updateSettings,
         updateChannelMetadata,
         sendRelayCommand,
         sendAllOffCommand,
-        manualRefresh: syncStatus,
+        manualRefresh,
         channelsOnCount,
         channelsOffCount
       }}

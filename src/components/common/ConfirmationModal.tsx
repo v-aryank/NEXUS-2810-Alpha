@@ -50,7 +50,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descId}
-        className="w-full max-w-md bg-panel border border-line rounded-xl p-5 shadow-[0_0_40px_rgba(50,223,255,0.08)] space-y-4"
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto bg-panel border border-line rounded-xl p-4 sm:p-5 shadow-[0_0_40px_rgba(50,223,255,0.08)] space-y-4"
       >
         <div className="flex items-center gap-3">
           <div className={`p-2.5 rounded-lg ${isDanger ? 'bg-danger/15 text-danger' : 'bg-accent/15 text-accent'}`}>
@@ -60,7 +60,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
             <h3 id={titleId} className="text-base font-semibold text-ink">
               {title}
             </h3>
-            <p className="text-xs text-ink-muted mt-0.5">Hardware confirmation required</p>
+            <p className="text-xs text-ink-muted mt-0.5">Review this action before continuing</p>
           </div>
         </div>
 
@@ -68,19 +68,19 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
           {message}
         </p>
 
-        <div className="flex items-center justify-end gap-3 pt-1">
+        <div className="flex flex-col-reverse items-stretch gap-2 pt-1 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
           <button
             ref={cancelRef}
             type="button"
             onClick={onCancel}
-            className="pressable min-h-11 px-4 py-2 text-sm font-semibold text-ink bg-elevated hover:border-accent/30 border border-line rounded-lg"
+            className="pressable min-h-11 w-full px-4 py-2 text-sm font-semibold text-ink bg-elevated hover:border-accent/30 border border-line rounded-lg sm:w-auto"
           >
             {cancelLabel}
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className={`pressable min-h-11 px-4 py-2 text-sm font-semibold rounded-lg ${
+            className={`pressable min-h-11 w-full px-4 py-2 text-sm font-semibold rounded-lg sm:w-auto ${
               isDanger
                 ? 'bg-rose-600 text-white hover:bg-rose-500 shadow-[0_0_16px_rgba(244,63,94,0.25)]'
                 : 'bg-accent text-canvas hover:brightness-110'

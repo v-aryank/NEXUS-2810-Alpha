@@ -37,3 +37,19 @@ export interface ConfigDTO {
   names: Record<string, string>;
   rooms: Record<string, string>;
 }
+
+export interface RelayHardwareConfigDTO {
+  board: string;
+  polarity: 'ACTIVE_HIGH';
+  supportedGpios: number[];
+  activeGpios: number[];
+  stagedGpios?: number[] | null;
+  channels: Array<{ id: number; gpio: number }>;
+  allRelaysOff: boolean;
+  commandPending: boolean;
+  stateCertain: boolean;
+}
+
+export interface RelayGpioMappingDTO {
+  channels: Array<{ id: number; gpio: number }>;
+}

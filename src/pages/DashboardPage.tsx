@@ -1,10 +1,10 @@
-import React from 'react';
+import type { FC } from 'react';
 import { useController } from '../context/ControllerContext';
 import { RelayCard } from '../components/dashboard/RelayCard';
 import { StatusSummary } from '../components/dashboard/StatusSummary';
 import { PageHeader } from '../components/common/PageHeader';
 
-export const DashboardPage: React.FC = () => {
+export const DashboardPage: FC = () => {
   const { channels, settings, connectionState } = useController();
   const isSimulated = settings.apiMode === 'mock';
 
@@ -41,11 +41,14 @@ export const DashboardPage: React.FC = () => {
           </span>
         </div>
 
-        <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-3">
+        <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-3">
           {channels.map((channel) => (
             <RelayCard key={channel.id} channel={channel} />
           ))}
         </div>
+        <p className="mt-3 text-center text-[11px] leading-relaxed text-ink-muted">
+          ON/OFF labels show controller-reported software command state, not physical relay or load feedback.
+        </p>
       </section>
     </div>
   );

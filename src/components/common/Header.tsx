@@ -10,8 +10,11 @@ export const Header: React.FC = () => {
 
   const handleRefreshClick = async () => {
     setIsRefreshing(true);
-    await manualRefresh();
-    setTimeout(() => setIsRefreshing(false), 450);
+    try {
+      await manualRefresh();
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   const statusLabel = isSimulated
@@ -42,7 +45,8 @@ export const Header: React.FC = () => {
           </div>
           {isSimulated && (
             <span className="font-mono text-[10px] font-semibold tracking-wide bg-amber-500/15 text-amber-300 border border-amber-400/30 px-1.5 py-0.5 rounded">
-              SIMULATED DATA
+              <span className="sm:hidden">DEMO</span>
+              <span className="hidden sm:inline">SIMULATED DATA</span>
             </span>
           )}
         </div>
@@ -78,8 +82,14 @@ export const Header: React.FC = () => {
             ) : (
               <WifiOff size={12} className="shrink-0" aria-hidden="true" />
             )}
-            <span className="hidden xs:inline capitalize">
-              {isSimulated && connectionState === 'connected' ? 'demo' : connectionState}
+            <span className="max-w-[4.5rem] truncate text-[10px] capitalize sm:max-w-none sm:text-[11px]">
+              {isSimulated && connectionState === 'connected'
+                ? 'Demo'
+                : connectionState === 'connected'
+                  ? 'Online'
+                  : connectionState === 'connecting'
+                    ? 'Connecting'
+                    : 'Offline'}
             </span>
           </div>
 
@@ -96,9 +106,9 @@ export const Header: React.FC = () => {
       </div>
 
       {errorMessage && (
-        <div role="alert" className="mx-4 lg:mx-6 mb-3 p-2.5 bg-rose-950/70 border border-rose-500/40 rounded-xl flex items-center gap-2 text-rose-200 text-xs">
+        <div role="alert" className="mx-4 lg:mx-6 mb-3 p-2.5 bg-rose-950/70 border border-rose-500/40 rounded-xl flex items-start gap-2 text-rose-200 text-xs leading-relaxed">
           <AlertTriangle size={14} className="shrink-0 text-danger" aria-hidden="true" />
-          <span className="truncate font-mono">{errorMessage}</span>
+          <span className="min-w-0 break-words font-mono">{errorMessage}</span>
         </div>
       )}
     </header>

@@ -9,9 +9,9 @@ export const RelayCard: React.FC<{ channel: RelayChannel }> = ({ channel }) => {
 
   const isPending = channel.commandState === 'pending';
   const isFailed = channel.commandState === 'uncertain' || channel.commandState === 'error';
-  const isOffline = connectionState === 'offline';
-  const isDisabled = isPending || isOffline;
-  const isOn = channel.state && !isOffline;
+  const isConnected = connectionState === 'connected';
+  const isDisabled = isPending || !isConnected;
+  const isOn = channel.state && isConnected;
 
   const handleCommandToggle = () => {
     if (isDisabled) return;
@@ -25,14 +25,7 @@ export const RelayCard: React.FC<{ channel: RelayChannel }> = ({ channel }) => {
       case 'light':
         return <Lightbulb size={iconSize} className={baseClass} aria-hidden="true" />;
       case 'fan':
-        return (
-          <Fan
-            size={iconSize}
-            className={`${baseClass} ${isOn ? 'motion-safe:animate-spin' : ''}`}
-            style={isOn ? { animationDuration: '2.5s' } : undefined}
-            aria-hidden="true"
-          />
-        );
+        return <Fan size={iconSize} className={baseClass} aria-hidden="true" />;
       case 'lamp':
         return <Lamp size={iconSize} className={baseClass} aria-hidden="true" />;
       case 'outlet':
@@ -45,12 +38,12 @@ export const RelayCard: React.FC<{ channel: RelayChannel }> = ({ channel }) => {
   const stateLabel = isPending
     ? 'Pending'
     : isFailed
-    ? 'Failed'
-    : isOffline
-    ? 'Disconnected'
+    ? 'Unconfirmed'
+    : !isConnected
+    ? connectionState === 'connecting' ? 'Connecting' : 'Disconnected'
     : channel.state
-    ? 'On'
-    : 'Off';
+    ? 'Commanded on'
+    : 'Commanded off';
 
   return (
     <article
@@ -87,12 +80,12 @@ export const RelayCard: React.FC<{ channel: RelayChannel }> = ({ channel }) => {
           ) : isFailed ? (
             <div className="flex items-center gap-1.5 text-warn font-mono text-[11px] font-medium">
               <AlertCircle size={12} className="shrink-0" aria-hidden="true" />
-              <span>FAILED</span>
+              <span>UNCONFIRMED</span>
             </div>
-          ) : isOffline ? (
+          ) : !isConnected ? (
             <div className="flex items-center gap-1.5 text-danger font-mono text-[11px] font-medium">
               <WifiOff size={12} className="shrink-0" aria-hidden="true" />
-              <span>OFFLINE</span>
+              <span>{connectionState === 'connecting' ? 'CONNECTING' : 'OFFLINE'}</span>
             </div>
           ) : (
             <div className="flex items-center gap-1.5">
@@ -107,7 +100,7 @@ export const RelayCard: React.FC<{ channel: RelayChannel }> = ({ channel }) => {
                   channel.state ? 'text-accent' : 'text-ink-muted'
                 }`}
               >
-                {channel.state ? 'ON' : 'OFF'}
+                {channel.state ? 'CMD ON' : 'CMD OFF'}
               </span>
               {settings.apiMode === 'mock' && <span className="sr-only">Simulated state</span>}
             </div>

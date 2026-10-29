@@ -5,7 +5,6 @@ import { BottomNav } from './components/common/BottomNav';
 import { Sidebar } from './components/common/Sidebar';
 import { DashboardPage } from './pages/DashboardPage';
 import { DevicesPage } from './pages/DevicesPage';
-import { AutomationsPage } from './pages/AutomationsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { TabType } from './types';
 
@@ -27,7 +26,6 @@ export const AppContent: React.FC = () => {
           <div key={activeTab} className="page-enter">
             {activeTab === 'home' && <DashboardPage />}
             {activeTab === 'devices' && <DevicesPage />}
-            {activeTab === 'automations' && <AutomationsPage />}
             {activeTab === 'settings' && <SettingsPage />}
           </div>
         </main>

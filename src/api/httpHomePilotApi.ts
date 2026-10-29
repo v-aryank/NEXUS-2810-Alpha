@@ -4,8 +4,11 @@ import {
   DeviceInfoDTO,
   ConfigDTO,
   RelayCommandResponseDTO,
-  AllRelaysCommandResponseDTO
+  AllRelaysCommandResponseDTO,
+  RelayHardwareConfigDTO,
+  RelayGpioMappingDTO
 } from './types';
+import { parseRelayHardwareConfig, relayMappingError } from './gpioMapping';
 
 export class HttpHomePilotApi implements IHomePilotApi {
   private readonly baseUrl: string;
@@ -49,6 +52,12 @@ export class HttpHomePilotApi implements IHomePilotApi {
       if (controller.signal.aborted) {
         throw new Error(`Request to ${endpoint} timed out after ${this.timeoutMs}ms.`);
       }
+      if (error instanceof TypeError) {
+        const target = this.baseUrl || 'this app origin';
+        throw new Error(
+          `Network/CORS error contacting ${target}. Check that the ESP32 is reachable. If this app is hosted on another origin, configure a same-origin API proxy; the firmware does not enable cross-origin browser access.`
+        );
+      }
       if (error instanceof Error) {
         throw new Error(`Controller communication failure: ${error.message}`);
       }
@@ -60,14 +69,28 @@ export class HttpHomePilotApi implements IHomePilotApi {
 
   async getStatus(): Promise<StatusResponseDTO> {
     const data = await this.request<StatusResponseDTO>('/api/v1/status', { method: 'GET' });
-    if (typeof data.revision !== 'number' || !Array.isArray(data.relays)) {
+    if (
+      !data ||
+      !Number.isInteger(data.revision) ||
+      !Array.isArray(data.relays) ||
+      data.relays.length !== 6 ||
+      !data.relays.every(
+        (relay, index) =>
+          relay &&
+          relay.id === index + 1 &&
+          typeof relay.state === 'boolean'
+      ) ||
+      !Number.isFinite(data.uptimeSeconds) ||
+      !Number.isFinite(data.wifiRssi) ||
+      !Number.isFinite(data.freeHeap)
+    ) {
       throw new Error('Malformed status payload received from ESP32.');
     }
     return data;
   }
 
   async setRelay(channelId: number, state: boolean): Promise<RelayCommandResponseDTO> {
-    if (channelId < 1 || channelId > 6) {
+    if (!Number.isInteger(channelId) || channelId < 1 || channelId > 6) {
       throw new Error(`Channel ${channelId} is invalid (must be 1–6).`);
     }
 
@@ -76,7 +99,13 @@ export class HttpHomePilotApi implements IHomePilotApi {
       body: JSON.stringify({ state })
     });
 
-    if (!result || result.success !== true) {
+    if (
+      !result ||
+      result.success !== true ||
+      result.channelId !== channelId ||
+      result.state !== state ||
+      !Number.isInteger(result.revision)
+    ) {
       throw new Error(`Hardware rejected relay ${channelId} actuation.`);
     }
 
@@ -89,7 +118,12 @@ export class HttpHomePilotApi implements IHomePilotApi {
       body: JSON.stringify({ state })
     });
 
-    if (!result || result.success !== true) {
+    if (
+      !result ||
+      result.success !== true ||
+      result.state !== state ||
+      !Number.isInteger(result.revision)
+    ) {
       throw new Error('Hardware rejected All-Off command.');
     }
 
@@ -97,11 +131,31 @@ export class HttpHomePilotApi implements IHomePilotApi {
   }
 
   async getDeviceInfo(): Promise<DeviceInfoDTO> {
-    return this.request<DeviceInfoDTO>('/api/v1/device', { method: 'GET' });
+    const data = await this.request<DeviceInfoDTO>('/api/v1/device', { method: 'GET' });
+    if (
+      !data ||
+      !['model', 'firmware', 'chipId', 'mac', 'ip'].every(
+        (field) => typeof data[field as keyof DeviceInfoDTO] === 'string'
+      )
+    ) {
+      throw new Error('Malformed device information received from ESP32.');
+    }
+    return data;
   }
 
   async getConfiguration(): Promise<ConfigDTO> {
-    return this.request<ConfigDTO>('/api/v1/config', { method: 'GET' });
+    const data = await this.request<ConfigDTO>('/api/v1/config', { method: 'GET' });
+    if (
+      !data ||
+      typeof data.deviceName !== 'string' ||
+      !data.names ||
+      typeof data.names !== 'object' ||
+      !data.rooms ||
+      typeof data.rooms !== 'object'
+    ) {
+      throw new Error('Malformed configuration payload received from ESP32.');
+    }
+    return data;
   }
 
   async updateConfiguration(config: Partial<ConfigDTO>): Promise<ConfigDTO> {
@@ -109,5 +163,31 @@ export class HttpHomePilotApi implements IHomePilotApi {
       method: 'PUT',
       body: JSON.stringify(config)
     });
+  }
+
+  async getRelayHardwareConfig(): Promise<RelayHardwareConfigDTO> {
+    return parseRelayHardwareConfig(
+      await this.request<RelayHardwareConfigDTO>('/api/v1/config/relays', { method: 'GET' })
+    );
+  }
+
+  async saveRelayGpioMapping(mapping: RelayGpioMappingDTO): Promise<RelayHardwareConfigDTO> {
+    const validationError = relayMappingError(mapping.channels);
+    if (validationError) throw new Error(validationError);
+    return parseRelayHardwareConfig(
+      await this.request<RelayHardwareConfigDTO>('/api/v1/config/relays', {
+        method: 'PUT',
+        body: JSON.stringify(mapping)
+      })
+    );
+  }
+
+  async applyRelayGpioMapping(): Promise<RelayHardwareConfigDTO> {
+    return parseRelayHardwareConfig(
+      await this.request<RelayHardwareConfigDTO>('/api/v1/config/relays/apply', {
+        method: 'POST',
+        body: '{}'
+      })
+    );
   }
 }

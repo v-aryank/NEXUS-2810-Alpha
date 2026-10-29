@@ -1,0 +1,3 @@
+include/wifi_credentials.h
+.pio/
+.venv/

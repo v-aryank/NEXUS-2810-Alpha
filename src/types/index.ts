@@ -1,4 +1,4 @@
-export type TabType = 'home' | 'devices' | 'automations' | 'settings';
+export type TabType = 'home' | 'devices' | 'settings';
 export type RelayCommandState = 'idle' | 'pending' | 'uncertain' | 'error';
 
 export interface DeviceMetadata {

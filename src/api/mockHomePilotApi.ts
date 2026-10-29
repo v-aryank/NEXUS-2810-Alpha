@@ -4,14 +4,23 @@ import {
   DeviceInfoDTO,
   ConfigDTO,
   RelayCommandResponseDTO,
-  AllRelaysCommandResponseDTO
+  AllRelaysCommandResponseDTO,
+  RelayHardwareConfigDTO,
+  RelayGpioMappingDTO
 } from './types';
+import { parseRelayHardwareConfig, relayMappingError, SUPPORTED_GPIO_PINS } from './gpioMapping';
 
 export class MockHomePilotApi implements IHomePilotApi {
   private revision = 100;
   private relays: boolean[] = [false, false, false, false, false, false];
   private uptime = 18420;
   private latencyMs = 220;
+  private hardwareConfig: RelayHardwareConfigDTO = {
+    board: 'ESP32-WROOM-32 DevKit (assumed)', polarity: 'ACTIVE_HIGH',
+    supportedGpios: [...SUPPORTED_GPIO_PINS],
+    activeGpios: [16, 17, 18, 19, 21, 22], channels: [16,17,18,19,21,22].map((gpio, i) => ({ id: i + 1, gpio })),
+    allRelaysOff: true, commandPending: false, stateCertain: true
+  };
 
   private config: ConfigDTO = {
     deviceName: 'NEXUS-2810-Alpha-ESP32',
@@ -50,7 +59,7 @@ export class MockHomePilotApi implements IHomePilotApi {
   }
 
   async setRelay(channelId: number, state: boolean): Promise<RelayCommandResponseDTO> {
-    if (channelId < 1 || channelId > 6) {
+    if (!Number.isInteger(channelId) || channelId < 1 || channelId > 6) {
       throw new Error(`Channel ID ${channelId} out of bounds (1-6)`);
     }
     await this.delay(this.latencyMs);
@@ -91,5 +100,31 @@ export class MockHomePilotApi implements IHomePilotApi {
       rooms: { ...this.config.rooms, ...(newConfig.rooms || {}) }
     };
     return JSON.parse(JSON.stringify(this.config));
+  }
+
+  async getRelayHardwareConfig(): Promise<RelayHardwareConfigDTO> {
+    await this.delay(this.latencyMs);
+    return parseRelayHardwareConfig(JSON.parse(JSON.stringify(this.hardwareConfig)));
+  }
+
+  async saveRelayGpioMapping(mapping: RelayGpioMappingDTO): Promise<RelayHardwareConfigDTO> {
+    await this.delay(this.latencyMs);
+    const validationError = relayMappingError(mapping.channels, this.hardwareConfig.supportedGpios);
+    if (validationError) throw new Error(validationError);
+    this.hardwareConfig.stagedGpios = [...mapping.channels]
+      .sort((left, right) => left.id - right.id)
+      .map((channel) => channel.gpio);
+    return this.getRelayHardwareConfig();
+  }
+
+  async applyRelayGpioMapping(): Promise<RelayHardwareConfigDTO> {
+    await this.delay(this.latencyMs);
+    if (this.relays.some(Boolean)) throw new Error('All commanded relay states must be OFF before applying.');
+    if (this.hardwareConfig.stagedGpios) {
+      this.hardwareConfig.activeGpios = [...this.hardwareConfig.stagedGpios];
+      this.hardwareConfig.channels = this.hardwareConfig.activeGpios.map((gpio, i) => ({ id: i + 1, gpio }));
+      delete this.hardwareConfig.stagedGpios;
+    }
+    return this.getRelayHardwareConfig();
   }
 }

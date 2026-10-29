@@ -57,10 +57,10 @@ describe('NEXUS-2810 Controller Architecture & Safety Verification', () => {
     const httpClient = new HttpHomePilotApi('http://127.0.0.1:54321', 100);
 
     await expect(httpClient.getStatus()).rejects.toThrow(
-      /Controller communication failure|timed out/
+      /Controller communication failure|Network\/CORS error|timed out/
     );
     await expect(httpClient.setRelay(1, true)).rejects.toThrow(
-      /Controller communication failure|timed out/
+      /Controller communication failure|Network\/CORS error|timed out/
     );
   });
 
