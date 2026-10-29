@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useController } from '../../context/ControllerContext';
-import { RefreshCw, Wifi, WifiOff, AlertTriangle } from 'lucide-react';
+import { RefreshCw, Wifi, WifiOff, AlertTriangle, Radio } from 'lucide-react';
+import { formatClock } from '../../utils/format';
 
 export const Header: React.FC = () => {
   const { connectionState, settings, lastSyncTime, manualRefresh, errorMessage } = useController();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const isSimulated = settings.apiMode === 'mock';
 
   const handleRefreshClick = async () => {
     setIsRefreshing(true);
@@ -12,65 +14,90 @@ export const Header: React.FC = () => {
     setTimeout(() => setIsRefreshing(false), 450);
   };
 
-  const formatTime = (date: Date | null) => {
-    if (!date) return '--:--:--';
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  };
+  const statusLabel = isSimulated
+    ? connectionState === 'connected'
+      ? 'Simulated online'
+      : connectionState === 'connecting'
+      ? 'Starting demo'
+      : 'Demo unavailable'
+    : connectionState === 'connected'
+    ? 'Controller online'
+    : connectionState === 'connecting'
+    ? 'Connecting'
+    : 'Controller offline';
 
   return (
-    <header className="sticky top-0 z-30 bg-[#070c17]/95 backdrop-blur-md border-b border-slate-800/80 px-3.5 py-2.5">
-      <div className="mx-auto flex items-center justify-between max-w-md">
-        <div className="flex items-center space-x-1.5 min-w-0">
-          <div className="flex items-center space-x-1">
-            <span className="font-bold tracking-tight text-sm text-slate-100">
-              NEXUS<span className="text-cyan-400">-2810</span>
-            </span>
-            {settings.apiMode === 'mock' && (
-              <span className="text-[9px] font-mono font-extrabold bg-amber-500/15 text-amber-300 border border-amber-500/30 px-1 py-0.2 rounded tracking-wide">
-                DEMO
-              </span>
-            )}
+    <header className="sticky top-0 z-30 border-b border-line bg-[#060910]/80 backdrop-blur-md pt-safe">
+      <div className="flex items-center justify-between gap-3 px-4 lg:px-6 py-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="lg:hidden">
+            <p className="font-semibold tracking-tight text-sm text-ink">
+              NEXUS<span className="text-accent">-2810</span>
+            </p>
           </div>
-          <span className="text-[10px] text-slate-400 font-mono hidden xs:inline border-l border-slate-800 pl-1.5">
-            {formatTime(lastSyncTime)}
-          </span>
+          <div className="hidden lg:flex items-center gap-3 min-w-0">
+            <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink-muted">System status</span>
+            <span className="text-slate-600">/</span>
+            <span className="font-mono text-[12px] text-ink truncate">{statusLabel}</span>
+          </div>
+          {isSimulated && (
+            <span className="font-mono text-[10px] font-semibold tracking-wide bg-amber-500/15 text-amber-300 border border-amber-400/30 px-1.5 py-0.5 rounded">
+              SIMULATED DATA
+            </span>
+          )}
         </div>
 
-        <div className="flex items-center space-x-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="hidden sm:inline font-mono text-[11px] text-ink-muted">{formatClock(lastSyncTime)}</span>
+
           <div
-            className={`flex items-center space-x-1 px-2 py-0.5 rounded-full text-[11px] font-medium border ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border min-h-8 ${
               connectionState === 'connected'
-                ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                ? isSimulated
+                  ? 'bg-indigo-500/15 text-accent-secondary border-indigo-400/30'
+                  : 'bg-emerald-500/10 text-ok border-emerald-400/30'
                 : connectionState === 'connecting'
-                ? 'bg-blue-500/10 text-blue-300 border-blue-500/30 animate-pulse'
-                : 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                ? 'bg-sky-500/10 text-accent border-accent/30'
+                : 'bg-rose-500/10 text-danger border-rose-400/30'
             }`}
           >
             {connectionState === 'connected' ? (
-              <Wifi size={11} className="text-emerald-400 shrink-0" />
+              <>
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${isSimulated ? 'bg-accent-secondary' : 'bg-ok dot-live'}`}
+                  aria-hidden="true"
+                />
+                {isSimulated ? (
+                  <Radio size={12} className="shrink-0" aria-hidden="true" />
+                ) : (
+                  <Wifi size={12} className="shrink-0 text-ok" aria-hidden="true" />
+                )}
+              </>
             ) : connectionState === 'connecting' ? (
-              <RefreshCw size={11} className="animate-spin text-blue-400 shrink-0" />
+              <RefreshCw size={12} className="animate-spin shrink-0" aria-hidden="true" />
             ) : (
-              <WifiOff size={11} className="text-rose-400 shrink-0" />
+              <WifiOff size={12} className="shrink-0" aria-hidden="true" />
             )}
-            <span className="capitalize text-[10px]">{connectionState}</span>
+            <span className="hidden xs:inline capitalize">
+              {isSimulated && connectionState === 'connected' ? 'demo' : connectionState}
+            </span>
           </div>
 
           <button
             type="button"
             onClick={handleRefreshClick}
             disabled={isRefreshing}
-            aria-label="Refresh ESP32 status"
-            className="h-8 w-8 flex items-center justify-center rounded-xl bg-slate-800/80 border border-slate-700/70 text-slate-300 active:scale-95 active:text-cyan-300 transition-transform"
+            aria-label="Refresh controller status"
+            className="pressable h-11 w-11 flex items-center justify-center rounded-xl bg-elevated border border-line text-ink-muted hover:text-accent hover:border-accent/40"
           >
-            <RefreshCw size={13} className={isRefreshing ? 'animate-spin text-cyan-400' : ''} />
+            <RefreshCw size={15} className={isRefreshing ? 'animate-spin text-accent' : ''} aria-hidden="true" />
           </button>
         </div>
       </div>
 
       {errorMessage && (
-        <div className="mx-auto mt-2 max-w-md p-2 bg-rose-950/80 border border-rose-800/90 rounded-xl flex items-center space-x-1.5 text-rose-200 text-[11px]">
-          <AlertTriangle size={13} className="text-rose-400 shrink-0" />
+        <div role="alert" className="mx-4 lg:mx-6 mb-3 p-2.5 bg-rose-950/70 border border-rose-500/40 rounded-xl flex items-center gap-2 text-rose-200 text-xs">
+          <AlertTriangle size={14} className="shrink-0 text-danger" aria-hidden="true" />
           <span className="truncate font-mono">{errorMessage}</span>
         </div>
       )}

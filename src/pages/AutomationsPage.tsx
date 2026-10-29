@@ -1,33 +1,60 @@
 import React from 'react';
-import { CalendarClock, ShieldAlert } from 'lucide-react';
+import { CalendarClock, ShieldAlert, Clock, Ban } from 'lucide-react';
+import { PageHeader } from '../components/common/PageHeader';
 
 export const AutomationsPage: React.FC = () => {
-  return (
-    <div className="space-y-4 pb-20 max-w-md mx-auto">
-      <div>
-        <h2 className="text-base font-semibold text-slate-100">Routines & Schedules</h2>
-        <p className="text-xs text-slate-400 mt-0.5">Local on-chip automation and timer triggers.</p>
-      </div>
+  const planned = [
+    { title: 'Weekday lighting', detail: 'Not implemented — no schedule is stored or executed.' },
+    { title: 'All-off at night', detail: 'Not implemented — use the manual All OFF control instead.' },
+    { title: 'Fan timer', detail: 'Not implemented — firmware RTC timers are not exposed in this build.' }
+  ];
 
-      <div className="bg-[#0f172a]/70 border border-slate-800 rounded-xl p-8 text-center space-y-4">
-        <div className="w-14 h-14 bg-blue-500/10 border border-blue-500/30 text-cyan-400 rounded-2xl mx-auto flex items-center justify-center">
-          <CalendarClock size={28} />
+  return (
+    <div className="w-full max-w-[1400px] space-y-5">
+      <PageHeader
+        eyebrow="NEXUS-2810 / ROUTINES"
+        title="Routines"
+        description="This page is a design preview only. No schedules, timers, or automations run from the web app."
+        trailing={
+          <span className="inline-flex w-fit items-center rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 font-mono text-[10px] font-semibold tracking-wide text-warn">
+            PLACEHOLDER
+          </span>
+        }
+      />
+
+      <div className="nexus-panel grid items-start gap-5 p-6 md:grid-cols-[auto_1fr] md:p-8">
+        <div className="w-12 h-12 bg-accent/10 border border-accent/30 text-accent rounded-xl flex items-center justify-center shadow-[0_0_16px_rgba(50,223,255,0.15)]">
+          <CalendarClock size={24} aria-hidden="true" />
         </div>
-        <div className="max-w-xs mx-auto space-y-1.5">
-          <h3 className="text-sm font-semibold text-slate-200">Firmware-Native Timers</h3>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            Local scheduling is configured at the ESP32 RTC level to guarantee execution even during Wi-Fi or phone outages.
+        <div>
+          <h3 className="text-lg font-semibold text-ink">Scheduling is not available</h3>
+          <p className="text-sm text-ink-muted mt-2 leading-relaxed max-w-2xl">
+            Local on-chip timers remain a firmware milestone. This interface does not create, persist, or fire routines, even in simulated mode.
+          </p>
+          <p className="inline-flex items-center gap-2 mt-4 font-mono text-[11px] text-accent bg-accent-dim border border-accent/20 px-2.5 py-1 rounded">
+            <Clock size={12} aria-hidden="true" />
+            Target: firmware-native RTC
           </p>
         </div>
-        <div className="inline-block bg-slate-800/80 border border-slate-700 px-3 py-1 rounded-full text-[11px] font-mono text-cyan-300">
-          Target Milestone: Firmware v2.9
-        </div>
       </div>
 
-      <div className="bg-amber-950/30 border border-amber-800/50 rounded-xl p-3.5 flex items-start space-x-2.5 text-xs text-amber-300/90">
-        <ShieldAlert size={16} className="text-amber-400 shrink-0 mt-0.5" />
-        <p className="text-[11px] leading-relaxed">
-          Safe appliance scheduling must always reside on the physical microcontroller RTC, never in phone background threads.
+      <div className="grid md:grid-cols-3 gap-3">
+        {planned.map((item) => (
+          <article key={item.title} className="rounded-2xl border border-line bg-elevated/80 p-4 transition-colors duration-200 hover:border-accent-secondary/30">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-ink">{item.title}</h3>
+              <Ban size={14} className="text-ink-muted" aria-hidden="true" />
+            </div>
+            <p className="text-xs text-ink-muted mt-2 leading-relaxed">{item.detail}</p>
+            <p className="font-mono text-[10px] uppercase tracking-wider text-warn mt-3">Inactive placeholder</p>
+          </article>
+        ))}
+      </div>
+
+      <div className="bg-warn/10 border border-warn/30 rounded-xl p-4 flex items-start gap-2.5 text-sm text-warn">
+        <ShieldAlert size={16} className="shrink-0 mt-0.5" aria-hidden="true" />
+        <p>
+          Do not rely on this screen for appliance scheduling. Safe timers must reside on the microcontroller RTC, not in the browser.
         </p>
       </div>
     </div>

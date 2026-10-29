@@ -2,29 +2,51 @@ import React from 'react';
 import { useController } from '../context/ControllerContext';
 import { RelayCard } from '../components/dashboard/RelayCard';
 import { StatusSummary } from '../components/dashboard/StatusSummary';
-import { ShieldCheck } from 'lucide-react';
+import { PageHeader } from '../components/common/PageHeader';
 
 export const DashboardPage: React.FC = () => {
-  const { channels } = useController();
+  const { channels, settings, connectionState } = useController();
+  const isSimulated = settings.apiMode === 'mock';
 
   return (
-    <div className="space-y-3 pb-24 max-w-md mx-auto">
+    <div className="w-full max-w-[1400px] space-y-5">
+      <PageHeader
+        eyebrow="NEXUS-2810"
+        title="Command center"
+        description={
+          isSimulated
+            ? 'Running against the local simulated driver. Relay states are demo data, not live hardware.'
+            : connectionState === 'connected'
+              ? 'Connected to the configured ESP32 controller.'
+              : connectionState === 'offline'
+                ? 'Controller unavailable. Relay commands are disabled.'
+                : 'Waiting for the configured ESP32 controller.'
+        }
+        trailing={isSimulated ? (
+          <span className="inline-flex w-fit items-center rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-300">
+            Simulated data mode
+          </span>
+        ) : undefined}
+      />
+
       <StatusSummary />
 
-      <main aria-label="Relay Channels">
-        <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+      <section aria-label="Relay channels">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-ink">
+            Relay channels
+          </h2>
+          <span className="font-mono text-[11px] text-ink-muted">
+            {channels.length} circuits
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-3">
           {channels.map((channel) => (
             <RelayCard key={channel.id} channel={channel} />
           ))}
         </div>
-      </main>
-
-      <footer className="pt-1">
-        <div className="bg-slate-900/50 border border-slate-800/60 rounded-xl px-3 py-2 flex items-center space-x-2 text-[10px] text-slate-400 leading-snug">
-          <ShieldCheck size={14} className="text-cyan-400 shrink-0" />
-          <span>Reflects commanded coil state. All switch toggles issue explicit idempotent ON/OFF payloads.</span>
-        </div>
-      </footer>
+      </section>
     </div>
   );
 };
